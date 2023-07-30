@@ -28,202 +28,228 @@ and then went home.
 </after>
 '''
 ```
-
-Simple case
------------
-
-One document in this dataset would look like:
-
-doc = '''
-<context>
-The quick brown fox
-jumps over the lazy dog
-and then went home.
-</context>
-
-<diff>
-<replace>
-jumps over the lazy dog
-<with>
-jumped over the lazy dogs
-</replace>
-</diff>
-'''
-
-Multiple line changes
----------------------
-
-A diff context that contains multiple contiguous line changes are treated
-together:
-
-```
-c = "The quick brown fox\njumps over the lazy dog\nand then went home."
-t = "jumps over the lazy dog\nand then went home."
-t' = "jumped over the lazy dogs\nand then ran away."
-```
-
-doc = '''
-<context>
-The quick brown fox
-jumps over the lazy dog
-and then went home.
-</context>
-
-<diff>
-<replace>
-jumps over the lazy dog
-<with>
-jumped over the lazy dogs
-</replace>
-
-<replace>
-and then went home.
-<with>
-and then ran away.
-</replace>
-</diff>
-'''
-
-If the context window is 0, it means that all lines in the context are part of
-the diff.
-
-Appending/preprending and truncating
-------------------------------------
-
-To handle cases where the diff involves adding or removing lines at the beginning
-or end of a context, we add a special token to <diff> tag:
-
-The following is a diff for deleting the beginning of the context:
-
-'''
-<context>
-The quick brown fox
-jumps over the lazy dog
-and then went home.
-</context>
-
-<diff>
-<truncate-beginning>
-The quick brown fox
-</truncate-beginning>
-</diff>
-'''
-
-Or the end of a context:
-
-```
-<diff>
-<truncate-end>
-and then went home.
-</truncate-end>
-</diff>
-```
-
-Similarly, adding text to the beginning:
-
-```
-<diff>
-<prepend>
-Let me tell you something.
-</prepend>
-</diff>
-```
-
-and to the end:
-
-```
-<diff>
-<append>
-The end!
-</append>
-</diff>
-```
-
-Or a combination of the two:
-
-```
-<diff>
-<prepend>
-Let me tell you something.
-</prepend>
-
-<truncate-end>
-and then went home.
-</truncate-end>
-</diff>
-```
-
-Or even the three transformations:
-
-```
-<diff>
-<prepend>
-Let me tell you something.
-</prepend>
-
-<replace>
-
-
-<truncate-end>
-and then went home.
-</truncate-end>
-</diff>
-```
 """
 
 import difflib
+import itertools
+import json
+import logging
+import re
+import typing
+from pathlib import Path
 
-from pprint import pprint
 import pywikibot
 
 
-def parse_diffs():
-    ...
+DIFF_HEADER = r"\*\*\* rev_\d+\s--- rev_\d+\s"
+
+# changed content is delimited by:
+# 
+# *** rev_<i>
+# --- rev_<j> ***
+# ***************
+# *** <n>,<m> ****
+DIFF_DELIMITER = (
+    r"\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\s"
+    r"\*\*\* \d+,\d+ \*\*\*\*"
+)
 
 
-def process_page(site: pywikibot.Site, page: str):
-    page = pywikibot.Page(site, page)
+logger = logging.getLogger(__name__)
 
-    revisions = [*page.revisions(reverse=True)]
-    print(f"Number of revisions: {len(revisions)}")
 
-    for i, (old_rev, new_rev) in enumerate(zip(revisions[:-1], revisions[1:])):
+class DocDiff(typing.NamedTuple):
+    before: str
+    after: str
+    diff_text: str
 
-        new_id, old_id = new_rev["revid"], old_rev["revid"]
-        new_text = page.getOldVersion(oldid=new_id)
-        old_text = page.getOldVersion(oldid=old_id)
-
-        unified_diff = difflib.context_diff(
-            old_text.splitlines(),
-            new_text.splitlines(),
-            lineterm="",
-            n=4,
-            fromfile=f'rev_{old_id}',
-            tofile=f'rev_{new_id}',
+    def __str__(self) -> str:
+        return (
+            "📖 DocDiff:\n\n"
+            f"⏸️ Before:\n{self.before}\n\n"
+            f"⏩️ After:\n{self.after}\n\n"
+            f"📝 Diff text:\n{self.diff_text}\n\n"
         )
+    
 
-        unified_diff_list = list(unified_diff)
-        print("")
-        print(f"Diff: {old_id} -> {new_id}")
-        print("\n".join(unified_diff_list))
-        print("------------------------")
-        print("")
-        if i > 20:
-            break
+class PageDiff(typing.NamedTuple):
+    doc_diff: DocDiff
+    revision_comment: str
+    old_revid: str
+    new_revid: str
 
 
-def main(page_names: list[str]):
+def get_raw_diff(page, old_rev: str, new_rev: str) -> typing.Optional[list[str]]:
+    """Get diff between two revisions.
+
+    Args:
+        old_rev (str): Old revision id.
+        new_rev (str): New revision id.
+
+    Returns:
+        str: Diff string.
+    """
+    # TODO: handle new_text is none
+    new_text = page.getOldVersion(oldid=new_rev)
+    if new_text is None:
+        logging.info(f"Couldn't find text for new revision {new_text}")
+        return None
+
+    old_text = page.getOldVersion(oldid=old_rev)
+    if old_text is None:
+        logging.info(f"Couldn't find text for old revision {old_text}")
+        return None
+
+    unified_diff = difflib.context_diff(
+        old_text.splitlines(),
+        new_text.splitlines(),
+        lineterm="",
+        n=2,
+        fromfile=f'rev_{old_rev}',
+        tofile=f'rev_{new_rev}',
+    )
+
+    return list(unified_diff)
+    
+
+def parse_diffs(diffs: list[str]) -> typing.Iterator[DocDiff]:
+    assert len(diffs) > 0, "diff cannot be empty"
+    diffs_text: str = "\n".join(diffs)
+    diffs_text = re.sub(DIFF_HEADER, "", diffs_text)
+    diffs_text = re.split(DIFF_DELIMITER, diffs_text)
+
+    for d in diffs_text:
+        if not d:
+            continue
+        try:
+            yield create_doc_diff(d)
+        except Exception as exc:
+            logger.error(f"Failed to parse diff:\n{d} - {exc}")
+
+
+def parse_diff_lines(before: str, after: str) -> tuple[str, str]:
+    before_out, after_out = [], []
+    for l1, l2 in itertools.zip_longest(
+        (x for x in before.splitlines() if x.strip()),
+        (x for x in after.splitlines() if x.strip()),
+        fillvalue="",
+    ):
+        if l1.strip() == "" and l2.strip() == "":
+            continue
+
+        if not before:
+            # no content in the before text means that only lines were removed
+            # from the after text.
+            if l2.startswith("+"):
+                after_out.append(l2)
+            else:
+                after_out.append(l2)
+                before_out.append(l2)
+            continue
+    
+        if not after:
+            # no content in the after text means that only lines were removed
+            # from the before text.
+            if l1.startswith("-"):
+                before_out.append(l1)
+            else:
+                before_out.append(l1)
+                after_out.append(l1)
+            continue
+        
+        before_out.append(l1)
+        after_out.append(l2)
+
+    return before_out, after_out
+
+
+def create_doc_diff(diff_text: str) -> DocDiff:
+    # split diff_doc by regex
+    # before and after is delimited by --- <n>,<m> ----
+    split = re.split(r"--- \d+,\d+ ----", diff_text)
+    if len(split) == 1:
+        split = re.split(r"--- \d+ ----", diff_text)
+    before, after = split
+    before, after = parse_diff_lines(before.strip(), after.strip())
+
+    # the first two characters of each line are the diff indicator, e.g.
+    # "- ", "+ ", "! ", or "  " for no change.
+    def clean_text(text: list[str]):
+        return "\n".join(
+            x[2:] if x.startswith(("+", "-", "!")) else x for x in text
+        ).strip()
+
+    return DocDiff(clean_text(before), clean_text(after), diff_text)
+
+
+def process_page(
+    site: pywikibot.Site,
+    page_name: str,
+    output_dir: Path,
+    n_revisions: typing.Optional[int] = None,
+    use_cache: bool = True,
+) -> typing.Iterator[PageDiff]:
+    page = pywikibot.Page(site, page_name)
+    revisions = [*page.revisions(reverse=True, total=n_revisions)]
+    logger.info(f"Number of revisions: {len(revisions)}")
+
+    for old_rev, new_rev in zip(revisions[:-1], revisions[1:]):
+        fp = get_doc_file_name(output_dir, page_name, old_rev['revid'], new_rev['revid'])
+        if use_cache and fp.exists():
+            logging.info(f"Data point {fp} already exists: skipping raw diff processing.")
+            continue
+        logging.info(f"Page: {page_name} - Revision: {old_rev['revid']} -> {new_rev['revid']}")
+        diff = get_raw_diff(page, old_rev["revid"], new_rev["revid"])
+        if diff is None:
+            logging.info(f"Text not found, skipping diff.")
+            continue
+        if len(diff) > 0:
+            for diff_doc in parse_diffs(diff):
+                yield PageDiff(
+                    diff_doc, new_rev["comment"], old_rev['revid'], new_rev['revid']
+                )
+
+
+def get_doc_file_name(
+    output_dir: Path,
+    page_name: str,
+    old_revid: str,
+    new_revid: str,
+) -> Path:
+    page = page_name.lower().replace(' ', '_')
+    return (output_dir / f"{page}_{old_revid}_{new_revid}").with_suffix(".json")
+
+
+def main(
+    page_names: list[str],
+    output_dir: str,
+    n_revisions: typing.Optional[int] = None,
+    use_cache: bool = True,
+):
     site = pywikibot.Site(u"en", fam=u"wikipedia")
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
     for page_name in page_names:
-        process_page(site, page_name)
+        logging.info(f"Processing page: {page_name}")
+        for page_diff in process_page(
+            site, page_name, output_dir, n_revisions=n_revisions, use_cache=use_cache,
+        ):
+            fp = get_doc_file_name(
+                output_dir, page_name, page_diff.old_revid, page_diff.new_revid,
+            )
+            with fp.open("w") as f:
+                data = {
+                    **page_diff.doc_diff._asdict(),
+                    "revision_comment": page_diff.revision_comment,
+                }
+                json.dump(data, f)
 
         # TODO:
-        # - Parse the unified diff to create diff documents as described above.
         # - Exclude documents with small diffs (need to determine threshold).
-        # - Create small dataset of documents based on some pre-determined pages.
         # - Analyze and spot-check documents to see if data is correctly formatted.
 
 
 if __name__ == "__main__":
-    page_names = ["Deep learning"]
-    main(page_names)
+    logging.basicConfig(level=logging.INFO)
+    page_names = ["Deep learning", "Ancient Greece", "Ted Chiang"]
+    main(page_names, output_dir="./datasets/diff_corpus_medium", use_cache=False)

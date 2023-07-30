@@ -1,4 +1,7 @@
 secrets.txt
+apicache-py3
+throttle.ctrl
+datasets
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
