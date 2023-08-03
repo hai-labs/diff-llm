@@ -18,6 +18,12 @@ Export secrets:
 export $(grep -v '^#' secrets.txt | xargs)
 ```
 
+Export env vars:
+
+```
+export PYTHONPATH=.
+```
+
 ## Usage
 
 ### Create dataset

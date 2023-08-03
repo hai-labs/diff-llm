@@ -21,7 +21,11 @@ jumps over the lazy dog
 and then went home.
 </before>
 
-<after revision-message="make it past tense">
+<revision-comment>
+Make past tense.
+</revision-comment>
+
+<after>
 The quick brown fox
 jumped over the lazy dogs
 and then went home.
@@ -51,7 +55,7 @@ DIFF_HEADER = r"\*\*\* rev_\d+\s--- rev_\d+\s"
 # *** <n>,<m> ****
 DIFF_DELIMITER = (
     r"\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\s"
-    r"\*\*\* \d+,\d+ \*\*\*\*"
+    r"\*\*\* [0-9,]+ \*\*\*\*"
 )
 
 
@@ -73,6 +77,7 @@ class DocDiff(typing.NamedTuple):
     
 
 class PageDiff(typing.NamedTuple):
+    title: str
     doc_diff: DocDiff
     revision_comment: str
     old_revid: str
@@ -171,9 +176,7 @@ def parse_diff_lines(before: str, after: str) -> tuple[str, str]:
 def create_doc_diff(diff_text: str) -> DocDiff:
     # split diff_doc by regex
     # before and after is delimited by --- <n>,<m> ----
-    split = re.split(r"--- \d+,\d+ ----", diff_text)
-    if len(split) == 1:
-        split = re.split(r"--- \d+ ----", diff_text)
+    split = re.split(r"--- [0-9,]+ ----", diff_text)
     before, after = split
     before, after = parse_diff_lines(before.strip(), after.strip())
 
@@ -217,7 +220,11 @@ def process_page(
         if len(diff) > 0:
             for diff_doc in parse_diffs(diff):
                 yield PageDiff(
-                    diff_doc, new_rev["comment"], old_rev['revid'], new_rev['revid']
+                    page.title(),
+                    diff_doc,
+                    new_rev["comment"],
+                    old_rev['revid'],
+                    new_rev['revid'],
                 )
 
 
@@ -257,6 +264,7 @@ def main(
             with fp.open("w") as f:
                 data = {
                     **page_diff.doc_diff._asdict(),
+                    "title": page_diff.title,
                     "revision_comment": page_diff.revision_comment,
                 }
                 json.dump(data, f)
@@ -273,7 +281,7 @@ if __name__ == "__main__":
     parser.add_argument("--output-dir", type=str, required=True)
     parser.add_argument("--page-names", type=str, required=True)
     parser.add_argument("--n-revisions", type=int, required=False, default=None)
-    parser.add_argument("--n-context-lines", type=int, required=True, default=2)
+    parser.add_argument("--n-context-lines", type=int, required=False, default=2)
     parser.add_argument("--use-cache", action="store_true", required=False)
 
     logging.basicConfig(level=logging.INFO)
