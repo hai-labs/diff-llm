@@ -21,7 +21,7 @@ jumps over the lazy dog
 and then went home.
 </before>
 
-<after>
+<after revision-message="make it past tense">
 The quick brown fox
 jumped over the lazy dogs
 and then went home.
@@ -79,7 +79,12 @@ class PageDiff(typing.NamedTuple):
     new_revid: str
 
 
-def get_raw_diff(page, old_rev: str, new_rev: str) -> typing.Optional[list[str]]:
+def get_raw_diff(
+    page,
+    old_rev: str,
+    new_rev: str,
+    n_context_lines: int,
+) -> typing.Optional[list[str]]:
     """Get diff between two revisions.
 
     Args:
@@ -104,7 +109,7 @@ def get_raw_diff(page, old_rev: str, new_rev: str) -> typing.Optional[list[str]]
         old_text.splitlines(),
         new_text.splitlines(),
         lineterm="",
-        n=2,
+        n=n_context_lines,
         fromfile=f'rev_{old_rev}',
         tofile=f'rev_{new_rev}',
     )
@@ -187,6 +192,7 @@ def process_page(
     page_name: str,
     output_dir: Path,
     n_revisions: typing.Optional[int] = None,
+    n_context_lines: int = 2,
     use_cache: bool = True,
 ) -> typing.Iterator[PageDiff]:
     page = pywikibot.Page(site, page_name)
@@ -199,7 +205,12 @@ def process_page(
             logging.info(f"Data point {fp} already exists: skipping raw diff processing.")
             continue
         logging.info(f"Page: {page_name} - Revision: {old_rev['revid']} -> {new_rev['revid']}")
-        diff = get_raw_diff(page, old_rev["revid"], new_rev["revid"])
+        diff = get_raw_diff(
+            page,
+            old_rev["revid"],
+            new_rev["revid"],
+            n_context_lines,
+        )
         if diff is None:
             logging.info(f"Text not found, skipping diff.")
             continue
@@ -224,6 +235,7 @@ def main(
     page_names: list[str],
     output_dir: str,
     n_revisions: typing.Optional[int] = None,
+    n_context_lines: int = 2,
     use_cache: bool = True,
 ):
     site = pywikibot.Site(u"en", fam=u"wikipedia")
@@ -232,7 +244,12 @@ def main(
     for page_name in page_names:
         logging.info(f"Processing page: {page_name}")
         for page_diff in process_page(
-            site, page_name, output_dir, n_revisions=n_revisions, use_cache=use_cache,
+            site,
+            page_name,
+            output_dir,
+            n_revisions=n_revisions,
+            use_cache=use_cache,
+            n_context_lines=n_context_lines,
         ):
             fp = get_doc_file_name(
                 output_dir, page_name, page_diff.old_revid, page_diff.new_revid,
@@ -250,6 +267,21 @@ def main(
 
 
 if __name__ == "__main__":
+    from argparse import ArgumentParser
+
+    parser = ArgumentParser()
+    parser.add_argument("--output-dir", type=str, required=True)
+    parser.add_argument("--page-names", type=str, required=True)
+    parser.add_argument("--n-revisions", type=int, required=False, default=None)
+    parser.add_argument("--n-context-lines", type=int, required=True, default=2)
+    parser.add_argument("--use-cache", action="store_true", required=False)
+
     logging.basicConfig(level=logging.INFO)
-    page_names = ["Deep learning", "Ancient Greece", "Ted Chiang"]
-    main(page_names, output_dir="./datasets/diff_corpus_medium", use_cache=False)
+    args = parser.parse_args()
+    main(
+        json.loads(args.page_names),
+        output_dir=args.output_dir,
+        use_cache=args.use_cache,
+        n_context_lines=args.n_context_lines,
+        n_revisions=args.n_revisions,
+    )

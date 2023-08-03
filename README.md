@@ -17,3 +17,14 @@ Export secrets:
 ```
 export $(grep -v '^#' secrets.txt | xargs)
 ```
+
+## Usage
+
+### Create dataset
+
+```
+python src/create_dataset.py \
+    --output-dir ./dataset \
+    --page-names '["Deep learning", "Ancient Greece", "Ted Chiang"]' \
+    --n-revisions 10
+```
