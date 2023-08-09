@@ -99,7 +99,6 @@ def get_raw_diff(
     Returns:
         str: Diff string.
     """
-    # TODO: handle new_text is none
     new_text = page.getOldVersion(oldid=new_rev)
     if new_text is None:
         logging.info(f"Couldn't find text for new revision {new_text}")
@@ -269,10 +268,6 @@ def main(
                 }
                 json.dump(data, f)
 
-        # TODO:
-        # - Exclude documents with small diffs (need to determine threshold).
-        # - Analyze and spot-check documents to see if data is correctly formatted.
-
 
 if __name__ == "__main__":
     from argparse import ArgumentParser
@@ -282,7 +277,7 @@ if __name__ == "__main__":
     parser.add_argument("--page-names", type=str, required=True)
     parser.add_argument("--n-revisions", type=int, required=False, default=None)
     parser.add_argument("--n-context-lines", type=int, required=False, default=2)
-    parser.add_argument("--use-cache", action="store_true", required=False)
+    parser.add_argument("--use-cache", action="store_true", required=False, default=False)
 
     logging.basicConfig(level=logging.INFO)
     args = parser.parse_args()

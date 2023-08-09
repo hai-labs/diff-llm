@@ -2,6 +2,8 @@ secrets.txt
 apicache-py3
 throttle.ctrl
 datasets
+models
+wandb
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

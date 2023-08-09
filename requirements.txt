@@ -1,3 +1,7 @@
+datasets
+evaluate
+pywikibot
 requests
-transformers
-wikiwho_wrapper
+transformers[torch]
+wandb
+xformers
