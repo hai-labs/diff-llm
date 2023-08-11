@@ -34,6 +34,7 @@ def fine_tune(
     model_path: str,
     data_dir: str,
     output_dir: str,
+    batch_size: int = 8,
     test_size: float = 0.01,
     model_max_length: int = 1024,
     seed: int = 41,
@@ -75,8 +76,8 @@ def fine_tune(
         weight_decay=0.1,
         lr_scheduler_type="cosine",
         warmup_ratio=0.03,
-        per_device_train_batch_size=8,
-        per_device_eval_batch_size=8,
+        per_device_train_batch_size=batch_size,
+        per_device_eval_batch_size=batch_size,
         gradient_accumulation_steps=gradient_accumulation_steps,
         dataloader_num_workers=0,
         num_train_epochs=20,
@@ -108,6 +109,8 @@ if __name__ == "__main__":
     parser.add_argument("--model-path", type=str, required=True, default="EleutherAI/pythia-70m")
     parser.add_argument("--data-dir", type=str, required=True, default="datasets/diff_corpus_xs")
     parser.add_argument("--output-dir", type=str, required=True, default="models/diff_model_xs")
+    parser.add_argument("--batch-size", type=int, required=False, default=8)
+    parser.add_argument("--test-size", type=float, required=False, default=0.01)
     parser.add_argument("--report-to", type=str, required=False, default="none")
     parser.add_argument("--max-length", type=int, required=False, default=1048)
     parser.add_argument("--gradient-accumulation-steps", type=int, required=False, default=8)
@@ -120,6 +123,8 @@ if __name__ == "__main__":
         model_path=args.model_path,
         data_dir=args.data_dir,
         output_dir=args.output_dir,
+        batch_size=args.batch_size,
+        test_size=args.test_size,
         report_to=args.report_to,
         model_max_length=args.max_length,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
