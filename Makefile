@@ -29,3 +29,15 @@ fine-tuning-med-0:
 		--report-to wandb \
 		--max-length 512 \
 		--gradient-accumulation-steps 2
+
+
+.PHONY: fine-tuning-med-padding-left
+fine-tuning-med-padding-left:
+	python diff_llm/fine_tune.py \
+		--model-path EleutherAI/pythia-70m \
+		--data-dir=datasets/diff_corpus_medium \
+		--output-dir=models/diff_model_medium_padding_left \
+		--report-to wandb \
+		--max-length 512 \
+		--gradient-accumulation-steps 2 \
+		--padding left

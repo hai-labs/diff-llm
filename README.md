@@ -78,14 +78,20 @@ python diff_llm/fine_tune.py \
 
 ```
 python diff_llm/inference.py \
-    --model_path models/diff_model_medium \
-    --tokenizer_path EleutherAI/pythia-70m \
+    --model-path models/diff_model_medium \
+    --tokenizer-path EleutherAI/pythia-70m \
     --prompt-file datasets/diff_corpus_xs/deep_learning_440439382_440443548.json
 ```
 
 
 ### Experiments
 
+Prototype fine-tuning on the medium dataset
 ```
 make fine-tuning-med-0
+```
+
+Padding the tokens to the left:
+```
+make fine-tuning-med-padding-left
 ```

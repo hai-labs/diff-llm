@@ -1,8 +1,7 @@
 """Fine-tune a pre-trained LLM on diff-completion task.
 
 NOTE:
-- Need to produce shorter diffs: consider per-line diffs.
-- Understand if the model uses attention mask to ignore padding tokens
+- Consider using Seq2Seq data collator instead of LM data collator.
 """
 
 import math
@@ -40,12 +39,13 @@ def fine_tune(
     seed: int = 41,
     report_to: str = "none",
     gradient_accumulation_steps: int = 8,
+    padding: str = "right",
 ):
 
     tokenizer = AutoTokenizer.from_pretrained(
         model_path,
         model_max_length=model_max_length,
-        padding_side="right",
+        padding_side=padding,
     )
     tokenizer.pad_token = tokenizer.eos_token
     model = AutoModelForCausalLM.from_pretrained(model_path)
@@ -70,7 +70,7 @@ def fine_tune(
     training_args = TrainingArguments(
         output_dir=output_dir,
         evaluation_strategy="steps",
-        eval_steps=50,
+        eval_steps=100,
         learning_rate=3e-6,
         weight_decay=0.1,
         lr_scheduler_type="cosine",
@@ -79,7 +79,7 @@ def fine_tune(
         per_device_eval_batch_size=8,
         gradient_accumulation_steps=gradient_accumulation_steps,
         dataloader_num_workers=0,
-        num_train_epochs=50,
+        num_train_epochs=20,
         logging_steps=1,
         optim="adamw_torch",
         report_to=report_to,
@@ -111,7 +111,10 @@ if __name__ == "__main__":
     parser.add_argument("--report-to", type=str, required=False, default="none")
     parser.add_argument("--max-length", type=int, required=False, default=1048)
     parser.add_argument("--gradient-accumulation-steps", type=int, required=False, default=8)
+    parser.add_argument("--padding", type=str, required=False, default="right")
     args = parser.parse_args()
+
+    print(f"Arguments: {args}")
 
     fine_tune(
         model_path=args.model_path,
@@ -120,4 +123,5 @@ if __name__ == "__main__":
         report_to=args.report_to,
         model_max_length=args.max_length,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
+        padding=args.padding,
     )

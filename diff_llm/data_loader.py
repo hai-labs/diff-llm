@@ -50,7 +50,7 @@ TEMPLATE = """
 """.strip()
 
 
-def parse_example(raw_example: RawExample) -> typing.Iterator[Example]:
+def parse_raw_example(raw_example: RawExample) -> typing.Iterator[Example]:
     diff = difflib.unified_diff(
         raw_example["before"].splitlines(),
         raw_example["after"].splitlines(),
@@ -119,7 +119,7 @@ def iter_reader(data_dir: str) -> typing.Iterator[Example]:
         count += 1
         with fp.open("r") as f:
             data = json.load(f)
-        yield from parse_example(data)
+        yield from parse_raw_example(data)
 
 
 def remove_large_diffs(example: Example, max_diff_len: int = 5000) -> bool:

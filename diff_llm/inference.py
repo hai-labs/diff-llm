@@ -19,6 +19,10 @@ PROMPT_TEMPLATE = """
 {title}
 </TITLE>
 
+<CONTEXT>
+{context}
+</CONTEXT>
+
 <BEFORE>
 {before}
 </BEFORE>
@@ -65,10 +69,12 @@ def get_inference_pipeline(
 if __name__ == "__main__":
     from argparse import ArgumentParser
 
+    from diff_llm.data_loader import parse_raw_example
+
     parser = ArgumentParser()
     parser.add_argument("--prompt-file", type=str, required=True)
-    parser.add_argument("--model_path", type=str, required=False, default="models/diff_model_medium")
-    parser.add_argument("--tokenizer_path", type=str, required=False, default="EleutherAI/pythia-70m")
+    parser.add_argument("--model-path", type=str, required=False, default="models/diff_model_medium")
+    parser.add_argument("--tokenizer-path", type=str, required=False, default="EleutherAI/pythia-70m")
     args = parser.parse_args()
 
     inference_pipeline = get_inference_pipeline(
@@ -77,24 +83,28 @@ if __name__ == "__main__":
     )
 
     with open(args.prompt_file, "r") as f:
-        prompt_data = json.load(f)
-        after = prompt_data.pop("after")
-        prompt_data.pop("diff_text")
+        raw_example = json.load(f)
 
-    prompt = PROMPT_TEMPLATE.format(**prompt_data)
-    stopping_criteria = DiffLLMStoppingCriteria(
-        eos_sequences=[
-            inference_pipeline.tokenizer.encode("</after>\n"),
-            inference_pipeline.tokenizer.encode("}}</after>"),
-            inference_pipeline.tokenizer.encode("</after>"),
-        ],
-    )
-    response = inference_pipeline(
-        prompt,
-        max_length=128,
-        pad_token_id=inference_pipeline.tokenizer.eos_token_id,
-        return_full_text=False,
-        stopping_criteria=[stopping_criteria],
-    )
-    print(prompt)
-    print(response[0]["generated_text"])
+    examples = [*parse_raw_example(raw_example)]
+    for example in examples:
+        after = example.pop("after")
+
+        prompt = PROMPT_TEMPLATE.format(**example)
+        stopping_criteria = DiffLLMStoppingCriteria(
+            eos_sequences=[
+                inference_pipeline.tokenizer.encode("</AFTER>\n"),
+                inference_pipeline.tokenizer.encode("}}</AFTER>"),
+                inference_pipeline.tokenizer.encode("</AFTER>"),
+            ],
+        )
+        response = inference_pipeline(
+            prompt,
+            max_length=1024,
+            pad_token_id=inference_pipeline.tokenizer.eos_token_id,
+            return_full_text=False,
+            stopping_criteria=[stopping_criteria],
+        )
+        print("PROMPT:", prompt)
+        print("GENERATED:", response[0]["generated_text"])
+        print("ACTUAL:", after)
+        print("-" * 100)
