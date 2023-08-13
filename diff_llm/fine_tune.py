@@ -34,6 +34,7 @@ def fine_tune(
     model_path: str,
     data_dir: str,
     output_dir: str,
+    num_epochs: int = 20,
     batch_size: int = 8,
     test_size: float = 0.01,
     model_max_length: int = 1024,
@@ -80,7 +81,7 @@ def fine_tune(
         per_device_eval_batch_size=batch_size,
         gradient_accumulation_steps=gradient_accumulation_steps,
         dataloader_num_workers=0,
-        num_train_epochs=20,
+        num_train_epochs=num_epochs,
         logging_steps=1,
         optim="adamw_torch",
         report_to=report_to,
@@ -109,6 +110,7 @@ if __name__ == "__main__":
     parser.add_argument("--model-path", type=str, required=True, default="EleutherAI/pythia-70m")
     parser.add_argument("--data-dir", type=str, required=True, default="datasets/diff_corpus_xs")
     parser.add_argument("--output-dir", type=str, required=True, default="models/diff_model_xs")
+    parser.add_argument("--num-epochs", type=int, required=False, default=20)
     parser.add_argument("--batch-size", type=int, required=False, default=8)
     parser.add_argument("--test-size", type=float, required=False, default=0.01)
     parser.add_argument("--report-to", type=str, required=False, default="none")
@@ -123,6 +125,7 @@ if __name__ == "__main__":
         model_path=args.model_path,
         data_dir=args.data_dir,
         output_dir=args.output_dir,
+        num_epochs=args.num_epochs,
         batch_size=args.batch_size,
         test_size=args.test_size,
         report_to=args.report_to,
