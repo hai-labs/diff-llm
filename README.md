@@ -50,6 +50,32 @@ python diff_llm/create_dataset.py \
     --page-names '["Deep learning", "Ancient Greece", "Ted Chiang"]'
 ```
 
+Large datasets with random sample of pages:
+
+1,000 pages
+
+```
+python diff_llm/create_dataset.py \
+    --output-dir ./datasets/diff_corpus_large1k \
+    --n-random-pages 1000
+```
+
+10,000 pages
+
+```
+python diff_llm/create_dataset.py \
+    --output-dir ./datasets/diff_corpus_large10k \
+    --n-random-pages 10000
+```
+
+#### Zip Dataset
+
+```
+./zip-dataset.sh datasets/<dataset_path>
+```
+
+This will produce a tar gz file called `<dataset_path>.tar.gz`.
+
 ### Fine Tune
 
 Train on xs dataset

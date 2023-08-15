@@ -4,6 +4,7 @@ throttle.ctrl
 datasets
 models
 wandb
+*.tar.gz
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

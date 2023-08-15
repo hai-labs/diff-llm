@@ -6,6 +6,7 @@ NOTE:
 
 import math
 import os
+import typing
 
 import torch
 import torch.nn as nn
@@ -34,6 +35,7 @@ def fine_tune(
     model_path: str,
     data_dir: str,
     output_dir: str,
+    checkpoint_dir: typing.Optional[str] = None,
     num_epochs: int = 20,
     batch_size: int = 8,
     test_size: float = 0.01,
@@ -97,7 +99,7 @@ def fine_tune(
         eval_dataset=dataset_splits["test"],
         data_collator=data_collator,
     )
-    trainer.train()
+    trainer.train(resume_from_checkpoint=checkpoint_dir)
     eval_results = trainer.evaluate(eval_dataset=dataset_splits["test"])
     print(f"Perplexity: {math.exp(eval_results['eval_loss']):.2f}")
     trainer.save_model(training_args.output_dir)
@@ -110,6 +112,7 @@ if __name__ == "__main__":
     parser.add_argument("--model-path", type=str, required=True, default="EleutherAI/pythia-70m")
     parser.add_argument("--data-dir", type=str, required=True, default="datasets/diff_corpus_xs")
     parser.add_argument("--output-dir", type=str, required=True, default="models/diff_model_xs")
+    parser.add_argument("--checkpoint-dir", type=str, required=False, default=None)
     parser.add_argument("--num-epochs", type=int, required=False, default=20)
     parser.add_argument("--batch-size", type=int, required=False, default=8)
     parser.add_argument("--test-size", type=float, required=False, default=0.01)
@@ -125,6 +128,7 @@ if __name__ == "__main__":
         model_path=args.model_path,
         data_dir=args.data_dir,
         output_dir=args.output_dir,
+        checkpoint_dir=args.checkpoint_dir,
         num_epochs=args.num_epochs,
         batch_size=args.batch_size,
         test_size=args.test_size,

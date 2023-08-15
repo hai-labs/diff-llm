@@ -43,6 +43,7 @@ import typing
 from pathlib import Path
 
 import pywikibot
+from pywikibot import pagegenerators
 
 
 DIFF_HEADER = r"\*\*\* rev_\d+\s--- rev_\d+\s"
@@ -190,22 +191,15 @@ def create_doc_diff(diff_text: str) -> DocDiff:
 
 
 def process_page(
-    site: pywikibot.Site,
-    page_name: str,
-    output_dir: Path,
+    page: pywikibot.Page,
     n_revisions: typing.Optional[int] = None,
     n_context_lines: int = 2,
-    use_cache: bool = True,
 ) -> typing.Iterator[PageDiff]:
-    page = pywikibot.Page(site, page_name)
+    page_name = page.title()
     revisions = [*page.revisions(reverse=True, total=n_revisions)]
     logger.info(f"Number of revisions: {len(revisions)}")
 
     for old_rev, new_rev in zip(revisions[:-1], revisions[1:]):
-        fp = get_doc_file_name(output_dir, page_name, old_rev['revid'], new_rev['revid'])
-        if use_cache and fp.exists():
-            logging.info(f"Data point {fp} already exists: skipping raw diff processing.")
-            continue
         logging.info(f"Page: {page_name} - Revision: {old_rev['revid']} -> {new_rev['revid']}")
         diff = get_raw_diff(
             page,
@@ -229,36 +223,44 @@ def process_page(
 
 def get_doc_file_name(
     output_dir: Path,
-    page_name: str,
+    page: pywikibot.Page,
     old_revid: str,
     new_revid: str,
 ) -> Path:
-    page = page_name.lower().replace(' ', '_')
-    return (output_dir / f"{page}_{old_revid}_{new_revid}").with_suffix(".json")
+    return (
+        output_dir /
+        f"page{page.pageid}_rev{old_revid}_rev{new_revid}"
+    ).with_suffix(".json")
 
 
 def main(
-    page_names: list[str],
     output_dir: str,
+    page_names: typing.Optional[list[str]] = None,
+    n_random_pages: typing.Optional[int] = None,
     n_revisions: typing.Optional[int] = None,
     n_context_lines: int = 2,
-    use_cache: bool = True,
 ):
-    site = pywikibot.Site(u"en", fam=u"wikipedia")
+    site: pywikibot.Site = pywikibot.Site(u"en", fam=u"wikipedia")
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    for page_name in page_names:
+
+    assert page_names or n_random_pages, "Either page_names or n_random_pages must be specified."
+
+    if page_names:
+        pages = (pywikibot.Page(site, page_name) for page_name in page_names)
+    else:
+        pages = site.randompages(total=n_random_pages)
+
+    for page in pages:
+        page_name = page.title()
         logging.info(f"Processing page: {page_name}")
         for page_diff in process_page(
-            site,
-            page_name,
-            output_dir,
+            page,
             n_revisions=n_revisions,
-            use_cache=use_cache,
             n_context_lines=n_context_lines,
         ):
             fp = get_doc_file_name(
-                output_dir, page_name, page_diff.old_revid, page_diff.new_revid,
+                output_dir, page, page_diff.old_revid, page_diff.new_revid,
             )
             with fp.open("w") as f:
                 data = {
@@ -274,17 +276,18 @@ if __name__ == "__main__":
 
     parser = ArgumentParser()
     parser.add_argument("--output-dir", type=str, required=True)
-    parser.add_argument("--page-names", type=str, required=True)
+    parser.add_argument("--page-names", type=str, required=False, default="")
+    parser.add_argument("--n-random-pages", type=int, required=False, default=None)
     parser.add_argument("--n-revisions", type=int, required=False, default=None)
     parser.add_argument("--n-context-lines", type=int, required=False, default=2)
-    parser.add_argument("--use-cache", action="store_true", required=False, default=False)
 
     logging.basicConfig(level=logging.INFO)
     args = parser.parse_args()
+
     main(
-        json.loads(args.page_names),
         output_dir=args.output_dir,
-        use_cache=args.use_cache,
+        page_names=json.loads(args.page_names) if args.page_names else None,
+        n_random_pages=args.n_random_pages,
         n_context_lines=args.n_context_lines,
         n_revisions=args.n_revisions,
     )
