@@ -134,13 +134,15 @@ def format_example(example: Example) -> dict:
 def get_dataset(
     data_dir: str,
     seed: int = 43,
+    remove_other_columns: bool = True,
 ) -> Dataset:
     dataset = Dataset.from_list([*iter_reader(data_dir)])
+    map_kwargs = {"remove_columns": dataset.column_names} if remove_other_columns else {}
     return (
         dataset
         .filter(remove_large_diffs)
         .shuffle(seed=seed)
-        .map(format_example, remove_columns=dataset.column_names)
+        .map(format_example, **map_kwargs)
     )
 
 

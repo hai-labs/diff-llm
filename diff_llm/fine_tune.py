@@ -28,7 +28,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "true"
 class DiffLLMTrainer(Trainer):
     def compute_loss(self, model, inputs, return_outputs=False):
         out = super().compute_loss(model, inputs, return_outputs)
-        import ipdb; ipdb.set_trace()
+        return out
 
 
 def fine_tune(
