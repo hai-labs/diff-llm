@@ -56,6 +56,7 @@ def get_inference_pipeline(
     model_path: str,
     tokenizer_path: typing.Optional[str] = None,
     model_max_length: int = 512,
+    **kwargs,
 ) -> Pipeline:
     tokenizer = AutoTokenizer.from_pretrained(
         tokenizer_path,
@@ -63,7 +64,7 @@ def get_inference_pipeline(
         padding_side="right",
     )
     model = AutoModelForCausalLM.from_pretrained(model_path)
-    return pipeline(task="text-generation", model=model, tokenizer=tokenizer)
+    return pipeline(task="text-generation", model=model, tokenizer=tokenizer, **kwargs)
 
 
 if __name__ == "__main__":
