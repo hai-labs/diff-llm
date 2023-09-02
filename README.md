@@ -68,6 +68,14 @@ python diff_llm/create_dataset.py \
     --n-random-pages 10000
 ```
 
+1,000,000 pages
+
+```
+python diff_llm/create_dataset.py \
+    --output-dir ./datasets/diff_corpus_large1m \
+    --n-random-pages 1000000
+```
+
 #### Zip Dataset
 
 ```
