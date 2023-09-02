@@ -44,15 +44,20 @@ def fine_tune(
     report_to: str = "none",
     gradient_accumulation_steps: int = 8,
     padding: str = "right",
+    **kwargs,
 ):
 
     tokenizer = AutoTokenizer.from_pretrained(
         model_path,
         model_max_length=model_max_length,
         padding_side=padding,
+        **kwargs,
     )
     tokenizer.pad_token = tokenizer.eos_token
-    model = AutoModelForCausalLM.from_pretrained(model_path)
+    model = AutoModelForCausalLM.from_pretrained(
+        model_path,
+        **kwargs,
+    )
 
     def tokenize(examples):
         return tokenizer(examples['example'])
