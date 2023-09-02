@@ -71,7 +71,9 @@ python diff_llm/create_dataset.py \
 #### Zip Dataset
 
 ```
-./zip-dataset.sh datasets/<dataset_path>
+for d in datasets/*; do
+    ./zip-dataset.sh ${d}
+done
 ```
 
 This will produce a tar gz file called `<dataset_path>.tar.gz`.
