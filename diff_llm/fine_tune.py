@@ -60,13 +60,15 @@ def fine_tune(
     )
 
     def tokenize(examples):
+        import ipdb; ipdb.set_trace()
+        examples["output"]
         return tokenizer(examples['example'])
     
     def filter_length(example):
         return len(example["input_ids"]) <= model_max_length + 1
 
     dataset = (
-        get_dataset(data_dir)
+        get_dataset(data_dir, remove_other_columns=False)
         .map(tokenize, batched=True)
     )
     print(f"Dataset size before token length filtering: {len(dataset)}")
@@ -74,6 +76,9 @@ def fine_tune(
     print(f"Dataset size after token length filterinsg: {len(dataset)}")
     dataset_splits = dataset.train_test_split(test_size=test_size, seed=seed)
     tokenizer.deprecation_warnings["Asking-to-pad-a-fast-tokenizer"] = True
+
+    # TODO: DataCollatorForLanguageModeling need to do -100 masking out of the
+    # target tokens that aren't part of the <AFTER>...</AFTER> sequence.
     data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
 
     training_args = TrainingArguments(

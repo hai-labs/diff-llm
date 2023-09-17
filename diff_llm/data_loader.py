@@ -6,6 +6,8 @@ import re
 import typing
 from pathlib import Path
 
+import nltk
+
 from datasets import Dataset
 
 
@@ -27,7 +29,10 @@ class Example(typing.TypedDict):
 UNIFIED_DIFF = r"@@ [0-9,\+\- ]+ @@"
 
 
-TEMPLATE = """
+# TODO:
+# Make the input template:
+# <title> ... <prefix> ... <suffix> ... <before> ... <revision_comment> ... <after> ...
+INPUT_TEMPLATE = """
 <TITLE>
 {title}
 </TITLE>
@@ -45,17 +50,32 @@ TEMPLATE = """
 </REVISION_PROMPT>
 
 <AFTER>
+""".strip()
+
+
+OUTPUT_TEMPLATE = """
 {after}
 </AFTER>
 """.strip()
 
 
+def setup_nltk():
+    nltk.download("punkt")
+
+
 def parse_raw_example(raw_example: RawExample) -> typing.Iterator[Example]:
-    diff = difflib.unified_diff(
-        raw_example["before"].splitlines(),
-        raw_example["after"].splitlines(),
-        n=1,
-    )
+
+    # TODO:
+    # - make sentence-level diffs an option
+    # - re-delimit the diffs by sentence instead of line
+
+    def line_per_sentence(text: str) -> str:
+        return nltk.tokenize.sent_tokenize(text.replace("\n", " "))
+
+    before = line_per_sentence(raw_example["before"])
+    after = line_per_sentence(raw_example["after"])
+
+    diff = difflib.unified_diff(before, after, n=1)
     difflist = [*diff]
 
     # remove the first two lines, which are the diff header
@@ -68,6 +88,7 @@ def parse_raw_example(raw_example: RawExample) -> typing.Iterator[Example]:
         and not re.match("\-\*\*\* [0-9,]+ \*\*\*\*", x)
     )
     diffs = [x for x in re.split(UNIFIED_DIFF, diff_text) if x != ""]
+
     for diff_lines in diffs:
         context, deleted, added = parse_diff_lines(diff_lines.split("\n"))
         yield Example({
@@ -128,7 +149,11 @@ def remove_large_diffs(example: Example, max_diff_len: int = 5000) -> bool:
 
 
 def format_example(example: Example) -> dict:
-    return {"example": TEMPLATE.format(**example)}
+    after = example.pop("after")
+    return {
+        "example": INPUT_TEMPLATE.format(**example),
+        "target": OUTPUT_TEMPLATE.format(after=after),
+    }
 
 
 def get_dataset(
@@ -136,7 +161,11 @@ def get_dataset(
     seed: int = 43,
     remove_other_columns: bool = True,
 ) -> Dataset:
-    dataset = Dataset.from_list([*iter_reader(data_dir)])
+    setup_nltk()
+    dataset = Dataset.from_generator(
+        iter_reader,
+        gen_kwargs={"data_dir": data_dir},
+    )
     map_kwargs = {"remove_columns": dataset.column_names} if remove_other_columns else {}
     return (
         dataset

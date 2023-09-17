@@ -131,3 +131,16 @@ Padding the tokens to the left:
 ```
 make fine-tuning-med-padding-left
 ```
+
+
+## 🔖 Model Card
+
+### Potential data sources
+
+Below are potential data sources for this dataset. The main requirement for
+data sources is that it's feasible (and ideally easy) to obtain different versions
+of the same document/item over time.
+
+- Wikipedia: https://doc.wikimedia.org/pywikibot/master/index.html
+- Internet Archive: https://archive.org/developers/index.html
+- Github: https://github.com/PyGithub/PyGithub
